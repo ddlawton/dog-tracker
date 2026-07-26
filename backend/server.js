@@ -58,7 +58,7 @@ app.post('/api/activities', async (req, res) => {
     const result = await pool.query(
       `INSERT INTO activities (type, subtype, timestamp, notes, gps_lat, gps_lon)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+       RETURNING id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at`,
       [type, subtype || null, timestamp, notes || null, gps_lat || null, gps_lon || null]
     );
     res.status(201).json(result.rows[0]);
@@ -73,11 +73,11 @@ app.get('/api/activities', async (req, res) => {
   const { date } = req.query;
 
   try {
-    let query = `SELECT * FROM activities ORDER BY timestamp DESC`;
+    let query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities ORDER BY timestamp DESC`;
     let params = [];
 
     if (date) {
-      query = `SELECT * FROM activities 
+      query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities 
                WHERE DATE(timestamp) = $1 
                ORDER BY timestamp DESC`;
       params = [date];
@@ -95,7 +95,7 @@ app.get('/api/activities', async (req, res) => {
 app.get('/api/activities/stats', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT type, COUNT(*) as count
+      SELECT type, COUNT(*)::INTEGER as count
       FROM activities
       WHERE DATE(timestamp) = CURRENT_DATE
       GROUP BY type
@@ -113,7 +113,7 @@ app.delete('/api/activities/:id', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `DELETE FROM activities WHERE id = $1 RETURNING *`,
+      `DELETE FROM activities WHERE id = $1 RETURNING id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at`,
       [id]
     );
 
@@ -131,7 +131,7 @@ app.delete('/api/activities/:id', async (req, res) => {
 // GET /api/export - Export all activities as JSON
 app.get('/api/export', async (req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM activities ORDER BY timestamp DESC`);
+    const result = await pool.query(`SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities ORDER BY timestamp DESC`);
     res.json({
       exported_at: new Date().toISOString(),
       count: result.rows.length,
@@ -153,10 +153,12 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend/index.html'));
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  initDB();
-});
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    initDB();
+  });
+}
 
 module.exports = app;

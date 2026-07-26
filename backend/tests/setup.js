@@ -46,6 +46,10 @@ async function setupTestDatabase() {
   return pool;
 }
 
+function getPool() {
+  return pool;
+}
+
 async function cleanupTestDatabase() {
   if (pool) {
     // Clear all activities
