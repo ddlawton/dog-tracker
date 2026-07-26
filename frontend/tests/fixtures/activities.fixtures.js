@@ -102,7 +102,6 @@ const activityFixtures = {
       { type: 'vomit' }
     ],
     '2026-07-25': [
-      { type: 'eating' },
       { type: 'potty' }
     ],
     '2026-07-26': [

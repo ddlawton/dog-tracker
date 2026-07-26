@@ -104,6 +104,8 @@ describe('HTML Security - Escaping', () => {
 
 describe('GPS Coordinate Validation', () => {
   function validateGPSCoordinates(lat, lon) {
+    if (lat === null || lon === null) return false;
+    
     const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
     const longitude = typeof lon === 'string' ? parseFloat(lon) : lon;
     

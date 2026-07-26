@@ -103,6 +103,8 @@ describe('Date Calculations', () => {
 
 describe('GPS Coordinate Handling', () => {
   function validateGPSCoordinates(lat, lon) {
+    if (lat === null || lon === null) return false;
+    
     const latitude = typeof lat === 'string' ? parseFloat(lat) : lat;
     const longitude = typeof lon === 'string' ? parseFloat(lon) : lon;
     
@@ -320,7 +322,7 @@ describe('API Response Validation', () => {
   test('should validate export response structure', () => {
     const exportData = {
       exported_at: '2026-07-26T10:00:00.000Z',
-      count: 5,
+      count: 2,
       activities: [
         { id: 1, type: 'potty', timestamp: '2026-07-26T10:00:00Z' },
         { id: 2, type: 'eating', timestamp: '2026-07-26T12:00:00Z' }
