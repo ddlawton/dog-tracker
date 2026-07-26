@@ -1,39 +1,11 @@
 const request = require('supertest');
-const { Pool } = require('pg');
 require('dotenv').config();
 
 let app;
-let pool;
 
 beforeAll(async () => {
-  // Initialize database pool
-  pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    database: process.env.DB_NAME || 'josie_tracker_test',
-    user: process.env.DB_USER || 'test',
-    password: process.env.DB_PASSWORD || 'test',
-  });
-
-  // Wait for database to be ready
-  let retries = 10;
-  while (retries > 0) {
-    try {
-      await pool.query('SELECT 1');
-      break;
-    } catch (e) {
-      retries--;
-      if (retries === 0) throw e;
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-
-  // Load app
+  // App is already loaded - database is set up by globalSetup.js
   app = require('../server');
-});
-
-afterAll(async () => {
-  await pool.end();
 });
 
 describe('Activity API', () => {

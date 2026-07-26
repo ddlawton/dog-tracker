@@ -24,6 +24,8 @@
     "testEnvironment": "node",
     "testMatch": ["**/tests/**/*.test.js"],
     "collectCoverageFrom": ["server.js"],
-    "coveragePathIgnorePatterns": ["/node_modules/"]
+    "coveragePathIgnorePatterns": ["/node_modules/"],
+    "globalSetup": "<rootDir>/tests/globalSetup.js",
+    "globalTeardown": "<rootDir>/tests/globalTeardown.js"
   }
 }

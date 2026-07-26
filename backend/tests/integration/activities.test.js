@@ -3,18 +3,35 @@
  */
 
 const request = require('supertest');
-const { setupTestDatabase, cleanupTestDatabase, getPool } = require('../setup');
+const { Pool } = require('pg');
 const fixtures = require('../fixtures/activities.fixtures');
+require('dotenv').config();
 
 let app;
+let pool;
 
 beforeAll(async () => {
-  await setupTestDatabase();
+  // Database already set up by globalSetup.js
   app = require('../../server');
+  
+  pool = new Pool({
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    database: process.env.DB_NAME || 'josie_tracker_test',
+    user: process.env.DB_USER || 'test',
+    password: process.env.DB_PASSWORD || 'test',
+  });
 });
 
 afterAll(async () => {
-  await cleanupTestDatabase();
+  if (pool) await pool.end();
+});
+
+beforeEach(async () => {
+  // Clear table before each test
+  if (pool) {
+    await pool.query('TRUNCATE activities RESTART IDENTITY');
+  }
 });
 
 describe('POST /api/activities - Create Activity', () => {
