@@ -1,0 +1,17 @@
+{
+  "name": "josie-tracker-frontend",
+  "version": "1.0.0",
+  "description": "Dog activity tracker frontend",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": ["**/tests/**/*.test.js"],
+    "collectCoverageFrom": ["app.js", "!**/node_modules/**"]
+  }
+}
