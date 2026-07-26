@@ -118,7 +118,6 @@ describe('POST /api/activities - Create Activity', () => {
 
 describe('GET /api/activities - Retrieve Activities', () => {
   beforeEach(async () => {
-    const pool = await getPool();
     await pool.query('TRUNCATE activities RESTART IDENTITY');
     
     // Seed test data

@@ -59,7 +59,7 @@ app.post('/api/activities', async (req, res) => {
       `INSERT INTO activities (type, subtype, timestamp, notes, gps_lat, gps_lon)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at`,
-      [type, subtype || null, timestamp, notes || null, gps_lat || null, gps_lon || null]
+      [type, subtype ?? null, timestamp, notes ?? null, gps_lat ?? null, gps_lon ?? null]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
