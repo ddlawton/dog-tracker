@@ -1,6 +1,6 @@
 services:
   josie-tracker:
-    image: ghcr.io/ddlawton/dog-tracker:main
+    image: ghcr.io/ddlawton/dog-tracker
     ports:
       - "3000:3000"
     environment:
