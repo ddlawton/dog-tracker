@@ -1,10 +1,42 @@
 const API_BASE = '/api';
-let currentDate = new Date().toISOString().split('T')[0];
+let displayTimezone = localStorage.getItem('displayTimezone') ||
+  Intl.DateTimeFormat().resolvedOptions().timeZone ||
+  'America/New_York';
+let currentDate = toLocalDateString(new Date());
 let currentGPS = { lat: null, lon: null };
 let allActivities = []; // Cache all activities
 let map = null;
 let markers = [];
 let infoWindow = null;
+
+// Timezone-aware formatting helpers
+function formatTime(timestamp) {
+  return new Date(timestamp).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: displayTimezone
+  });
+}
+
+function formatDate(timestamp, options = {}) {
+  return new Date(timestamp).toLocaleDateString('en-US', {
+    ...options,
+    timeZone: displayTimezone
+  });
+}
+
+function formatDateTime(timestamp, options = {}) {
+  return new Date(timestamp).toLocaleString('en-US', {
+    ...options,
+    timeZone: displayTimezone
+  });
+}
+
+// Returns YYYY-MM-DD in the display timezone (used for date grouping)
+function toLocalDateString(timestamp) {
+  return new Date(timestamp).toLocaleDateString('en-CA', { timeZone: displayTimezone });
+}
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
@@ -68,13 +100,12 @@ function changeDate() {
 
 function updateDateHeader() {
   const header = document.getElementById('date-header');
-  const date = new Date(currentDate);
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalDateString(new Date());
   
   if (currentDate === today) {
     header.textContent = "Today's Activities";
   } else {
-    header.textContent = date.toLocaleDateString('en-US', { 
+    header.textContent = formatDate(currentDate + 'T12:00:00', { 
       weekday: 'short', 
       month: 'short', 
       day: 'numeric' 
@@ -221,11 +252,7 @@ function renderActivities(activities) {
   }
 
   list.innerHTML = activities.map(activity => {
-    const time = new Date(activity.timestamp).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+    const time = formatTime(activity.timestamp);
 
     const typeEmoji = {
       potty: '🚽',
@@ -369,7 +396,7 @@ function renderStats() {
 
   statsHtml.innerHTML = Object.entries(typeCounts).map(([type, data]) => {
     const last = lastActivities[type];
-    const lastTime = last ? new Date(last.timestamp).toLocaleDateString() : 'Never';
+    const lastTime = last ? formatDate(last.timestamp, { month: 'short', day: 'numeric' }) : 'Never';
     
     return `
       <div class="stat-card" style="border-top-color: ${data.color}">
@@ -385,10 +412,10 @@ function renderStats() {
 function renderHistoryPage() {
   const historyHtml = document.getElementById('history-list');
 
-  // Group by date
+  // Group by date in display timezone
   const byDate = {};
   allActivities.forEach(activity => {
-    const date = activity.timestamp.split('T')[0];
+    const date = toLocalDateString(activity.timestamp);
     if (!byDate[date]) {
       byDate[date] = [];
     }
@@ -403,8 +430,7 @@ function renderHistoryPage() {
   historyHtml.innerHTML = Object.entries(byDate)
     .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
     .map(([date, activities]) => {
-      const dateObj = new Date(date);
-      const dateStr = dateObj.toLocaleDateString('en-US', {
+      const dateStr = formatDate(date + 'T12:00:00', {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
@@ -456,10 +482,10 @@ function renderCalendar() {
   const daysInMonth = lastDay.getDate();
   const startingDayOfWeek = firstDay.getDay();
 
-  // Group activities by date
+  // Group activities by date in display timezone
   const byDate = {};
   allActivities.forEach(activity => {
-    const date = activity.timestamp.split('T')[0];
+    const date = toLocalDateString(activity.timestamp);
     byDate[date] = (byDate[date] || 0) + 1;
   });
 
@@ -467,7 +493,7 @@ function renderCalendar() {
   let calendarContent = `
     <div style="grid-column: 1 / -1; margin-bottom: 8px;">
       <h3 style="text-align: center; color: #333; margin: 0; font-size: 16px;">
-        ${firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+        ${formatDate(firstDay.toISOString(), { month: 'long', year: 'numeric' })}
       </h3>
     </div>
   `;
@@ -580,7 +606,7 @@ function renderMap() {
     const lat = typeof activity.gps_lat === 'string' ? parseFloat(activity.gps_lat) : activity.gps_lat;
     const lon = typeof activity.gps_lon === 'string' ? parseFloat(activity.gps_lon) : activity.gps_lon;
 
-    const time = new Date(activity.timestamp).toLocaleString('en-US', {
+    const time = formatDateTime(activity.timestamp, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -630,19 +656,19 @@ function renderMap() {
 function renderWeeklyStats() {
   const weeklyHtml = document.getElementById('weekly-stats');
 
-  // Get last 7 days
+  // Get last 7 days in display timezone
   const today = new Date();
   const last7Days = {};
   
   for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateString(date);
     last7Days[dateStr] = [];
   }
 
   allActivities.forEach(activity => {
-    const date = activity.timestamp.split('T')[0];
+    const date = toLocalDateString(activity.timestamp);
     if (last7Days[date]) {
       last7Days[date].push(activity);
     }
@@ -693,3 +719,54 @@ function renderWeeklyStats() {
   }).join('');
 }
 
+// Timezone Selector
+const COMMON_TIMEZONES = [
+  { value: 'America/New_York',    label: 'Eastern (New York / Raleigh)' },
+  { value: 'America/Chicago',     label: 'Central (Chicago)' },
+  { value: 'America/Denver',      label: 'Mountain (Denver)' },
+  { value: 'America/Los_Angeles', label: 'Pacific (Los Angeles)' },
+  { value: 'America/Anchorage',   label: 'Alaska (Anchorage)' },
+  { value: 'Pacific/Honolulu',    label: 'Hawaii (Honolulu)' },
+  { value: 'Europe/London',       label: 'London (GMT/BST)' },
+  { value: 'Europe/Paris',        label: 'Paris / Berlin (CET)' },
+  { value: 'Asia/Tokyo',          label: 'Tokyo (JST)' },
+  { value: 'Asia/Shanghai',       label: 'Shanghai (CST)' },
+  { value: 'Australia/Sydney',    label: 'Sydney (AEST)' },
+  { value: 'UTC',                 label: 'UTC' },
+];
+
+function openTimezoneModal() {
+  const select = document.getElementById('timezone-select');
+  select.innerHTML = '';
+
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const inList = COMMON_TIMEZONES.some(tz => tz.value === browserTz);
+  if (browserTz && !inList) {
+    const opt = document.createElement('option');
+    opt.value = browserTz;
+    opt.textContent = `Auto-detected: ${browserTz}`;
+    select.appendChild(opt);
+  }
+
+  COMMON_TIMEZONES.forEach(tz => {
+    const opt = document.createElement('option');
+    opt.value = tz.value;
+    opt.textContent = tz.label + (tz.value === browserTz ? ' ★ (browser)' : '');
+    select.appendChild(opt);
+  });
+
+  select.value = displayTimezone;
+  if (!select.value) select.value = 'America/New_York';
+  openModal('timezone-modal');
+}
+
+function saveTimezone() {
+  const select = document.getElementById('timezone-select');
+  displayTimezone = select.value;
+  localStorage.setItem('displayTimezone', displayTimezone);
+  closeModal('timezone-modal');
+  currentDate = toLocalDateString(new Date());
+  updateDateHeader();
+  loadActivities();
+  loadStats();
+}
