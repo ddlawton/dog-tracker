@@ -15,6 +15,7 @@
       <div class="header-actions">
         <button id="export-btn" class="icon-btn" title="Export data">📥</button>
         <button id="date-picker-btn" class="icon-btn" title="Change date">📅</button>
+        <button class="icon-btn" title="Change timezone" onclick="openTimezoneModal()">🌍</button>
       </div>
     </header>
 
@@ -192,6 +193,21 @@
         </div>
       </div>
     </div>
+    <!-- Timezone Selector Modal -->
+    <div id="timezone-modal" class="modal">
+      <div class="modal-content">
+        <h3>🌍 Display Timezone</h3>
+        <div class="form-group">
+          <label>Timezone:</label>
+          <select id="timezone-select" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;"></select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="closeModal('timezone-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="saveTimezone()">Save</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="app.js"></script>
