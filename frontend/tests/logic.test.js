@@ -72,9 +72,9 @@ describe('Date Calculations', () => {
 
   test('should correctly format dates for calendar', () => {
     const date = new Date('2026-07-26T00:00:00Z');
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
 
     expect(year).toBe(2026);
     expect(month).toBe(6); // July is 6 (0-indexed)

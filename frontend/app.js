@@ -173,10 +173,14 @@ async function logActivity(type) {
   // Get GPS coordinates if needed
   const gps = await getGPSCoordinates(useGPS);
 
+  // Create timestamp in the display timezone
+  const now = new Date();
+  const tzDate = new Date(now.toLocaleString('en-US', { timeZone: displayTimezone }));
+  
   const activityData = {
     type,
     subtype,
-    timestamp: new Date().toISOString(),
+    timestamp: tzDate.toISOString(),
     notes: notes || null,
     gps_lat: gps.lat,
     gps_lon: gps.lon
