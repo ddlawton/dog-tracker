@@ -11,10 +11,9 @@ describe('Timezone Fix - Activity Logging', () => {
    * This is the corrected method that should be used
    */
   function createActivityTimestampFixed(timezone = 'America/New_York') {
-    const now = new Date();
-    // Convert current UTC time to the display timezone string
-    const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-    return tzDate.toISOString();
+    // Return the current UTC time as an ISO string
+    // Timestamps are always in UTC; the timezone is only used when displaying
+    return new Date().toISOString();
   }
 
   /**
@@ -47,12 +46,14 @@ describe('Timezone Fix - Activity Logging', () => {
   });
 
   test('should show correct time when displayed in same timezone', () => {
-    // Get current time
+    // Get current time in EST timezone
     const now = new Date();
-    const currentHourEST = parseInt(
-      new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }))
-        .toLocaleTimeString('en-US', { hour: 'numeric', timeZone: 'America/New_York' })
-    );
+    const currentTimeStr = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      timeZone: 'America/New_York',
+      hour12: true
+    });
+    const currentHourEST = parseInt(currentTimeStr);
     
     // Create timestamp using fixed method
     const timestamp = createActivityTimestampFixed('America/New_York');
@@ -147,15 +148,18 @@ describe('Timezone Fix - Activity Logging', () => {
     const hourMatch = displayed.match(/^(\d{1,2}):/);
     const displayedHour = hourMatch ? parseInt(hourMatch[1]) : null;
     
-    // Get current EST hour
+    // Get current hour in EST timezone (12-hour format)
     const now = new Date();
-    const currentTzString = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
-    const currentTzDate = new Date(currentTzString);
-    const currentHour = currentTzDate.getHours();
+    const currentTimeStr = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      timeZone: 'America/New_York',
+      hour12: true
+    });
+    const currentHour = parseInt(currentTimeStr);
     
     // They should be very close (within 1 hour)
     // If they're 6 hours apart, the bug is still there
-    const hourDifference = Math.abs(displayedHour - (currentHour === 0 ? 12 : currentHour > 12 ? currentHour - 12 : currentHour));
+    const hourDifference = Math.abs(displayedHour - currentHour);
     
     expect(hourDifference <= 1).toBe(true);
   });
