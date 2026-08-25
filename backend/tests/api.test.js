@@ -116,8 +116,9 @@ describe('Activity API', () => {
 
     test('should filter activities by specific date', async () => {
       const testDate = '2026-07-26';
+      const timezone = 'America/New_York';
       const res = await request(app)
-        .get(`/api/activities?date=${testDate}`)
+        .get(`/api/activities?date=${testDate}&timezone=${encodeURIComponent(timezone)}`)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -165,8 +166,9 @@ describe('Activity API', () => {
 
   describe('GET /api/activities/stats', () => {
     test('should return activity statistics', async () => {
+      const timezone = 'America/New_York';
       const res = await request(app)
-        .get('/api/activities/stats')
+        .get(`/api/activities/stats?timezone=${encodeURIComponent(timezone)}`)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);

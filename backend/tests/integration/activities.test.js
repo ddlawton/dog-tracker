@@ -153,8 +153,9 @@ describe('GET /api/activities - Retrieve Activities', () => {
 
   test('should filter activities by specific date', async () => {
     const testDate = new Date().toISOString().split('T')[0];
+    const timezone = 'America/New_York';
     const res = await request(app)
-      .get(`/api/activities?date=${testDate}`)
+      .get(`/api/activities?date=${testDate}&timezone=${encodeURIComponent(timezone)}`)
       .expect(200);
 
     expect(Array.isArray(res.body)).toBe(true);
@@ -194,8 +195,9 @@ describe('DELETE /api/activities/:id - Delete Activity', () => {
       .delete(`/api/activities/${activityId}`)
       .expect(200);
 
+    const timezone = 'America/New_York';
     const getRes = await request(app)
-      .get(`/api/activities?date=${new Date().toISOString().split('T')[0]}`)
+      .get(`/api/activities?date=${new Date().toISOString().split('T')[0]}&timezone=${encodeURIComponent(timezone)}`)
       .expect(200);
 
     const deleted = getRes.body.find(a => a.id === activityId);

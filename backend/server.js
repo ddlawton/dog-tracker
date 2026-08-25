@@ -70,17 +70,25 @@ app.post('/api/activities', async (req, res) => {
 
 // GET /api/activities - Fetch activities by date
 app.get('/api/activities', async (req, res) => {
-  const { date } = req.query;
+  const { date, timezone } = req.query;
 
   try {
     let query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities ORDER BY timestamp DESC`;
     let params = [];
 
     if (date) {
-      query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities 
-               WHERE DATE(timestamp) = $1 
-               ORDER BY timestamp DESC`;
-      params = [date];
+      // If timezone is provided, convert timestamp to that timezone before filtering
+      if (timezone) {
+        query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities 
+                 WHERE DATE(timestamp AT TIME ZONE $2) = $1::date
+                 ORDER BY timestamp DESC`;
+        params = [date, timezone];
+      } else {
+        query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities 
+                 WHERE DATE(timestamp) = $1 
+                 ORDER BY timestamp DESC`;
+        params = [date];
+      }
     }
 
     const result = await pool.query(query, params);
@@ -93,14 +101,28 @@ app.get('/api/activities', async (req, res) => {
 
 // GET /api/activities/stats - Activity statistics
 app.get('/api/activities/stats', async (req, res) => {
+  const { timezone } = req.query;
+  
   try {
-    const result = await pool.query(`
-      SELECT type, COUNT(*)::INTEGER as count
-      FROM activities
-      WHERE DATE(timestamp) = CURRENT_DATE
-      GROUP BY type
-    `);
-    res.json(result.rows);
+    let query;
+    let params = [];
+    
+    if (timezone) {
+      query = `SELECT type, COUNT(*)::INTEGER as count
+               FROM activities
+               WHERE DATE(timestamp AT TIME ZONE $1) = DATE(NOW() AT TIME ZONE $1)
+               GROUP BY type`;
+      params = [timezone];
+      const result = await pool.query(query, params);
+      res.json(result.rows);
+    } else {
+      query = `SELECT type, COUNT(*)::INTEGER as count
+               FROM activities
+               WHERE DATE(timestamp) = CURRENT_DATE
+               GROUP BY type`;
+      const result = await pool.query(query);
+      res.json(result.rows);
+    }
   } catch (error) {
     console.error('Error fetching stats:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });

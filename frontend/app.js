@@ -220,7 +220,7 @@ async function logActivity(type) {
 // Load Activities
 async function loadActivities() {
   try {
-    const response = await fetch(`${API_BASE}/activities?date=${currentDate}`);
+    const response = await fetch(`${API_BASE}/activities?date=${currentDate}&timezone=${encodeURIComponent(displayTimezone)}`);
     const activities = await response.json();
     renderActivities(activities);
   } catch (error) {
