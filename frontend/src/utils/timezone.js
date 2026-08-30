@@ -20,7 +20,8 @@ export class TimezoneFormatter {
    * Format timestamp to time string (e.g., "3:45 PM")
    */
   formatTime(timestamp) {
-    return DateTime.fromISO(timestamp, { zone: this.timezone })
+    return DateTime.fromISO(timestamp)
+      .setZone(this.timezone)
       .toLocaleString(DateTime.TIME_SIMPLE);
   }
 
@@ -28,7 +29,8 @@ export class TimezoneFormatter {
    * Format timestamp to date string (e.g., "Jan 15, 2024")
    */
   formatDate(timestamp, format = DateTime.DATE_MED) {
-    return DateTime.fromISO(timestamp, { zone: this.timezone })
+    return DateTime.fromISO(timestamp)
+      .setZone(this.timezone)
       .toLocaleString(format);
   }
 
@@ -36,7 +38,8 @@ export class TimezoneFormatter {
    * Format timestamp to datetime string (e.g., "Jan 15, 2024, 3:45 PM")
    */
   formatDateTime(timestamp) {
-    return DateTime.fromISO(timestamp, { zone: this.timezone })
+    return DateTime.fromISO(timestamp)
+      .setZone(this.timezone)
       .toLocaleString(DateTime.DATETIME_MED);
   }
 
@@ -45,7 +48,8 @@ export class TimezoneFormatter {
    * This is used for date grouping and filtering
    */
   toLocalDateString(timestamp) {
-    return DateTime.fromISO(timestamp, { zone: this.timezone })
+    return DateTime.fromISO(timestamp)
+      .setZone(this.timezone)
       .toFormat('yyyy-MM-dd');
   }
 
@@ -57,18 +61,20 @@ export class TimezoneFormatter {
   }
 
   /**
-   * Create a timestamp from current moment in the user's timezone
-   * This fixes the timezone bug where activities were created with UTC time
+   * Create a timestamp from current moment in the user's timezone  
+   * Returns ISO 8601 with timezone offset (e.g., "2026-08-30T15:43:10.501-04:00")
    */
   createTimestamp() {
-    return DateTime.now().setZone(this.timezone).toISO();
+    return DateTime.now()
+      .setZone(this.timezone)
+      .toISO({ includeOffset: true, suppressSeconds: false, suppressMilliseconds: false });
   }
 
   /**
    * Get relative time (e.g., "2 hours ago", "just now")
    */
   getRelativeTime(timestamp) {
-    const dt = DateTime.fromISO(timestamp, { zone: this.timezone });
+    const dt = DateTime.fromISO(timestamp).setZone(this.timezone);
     return dt.toRelative();
   }
 
