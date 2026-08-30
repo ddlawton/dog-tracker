@@ -8,6 +8,41 @@ beforeAll(async () => {
   app = require('../server');
 });
 
+describe('Settings API', () => {
+  describe('GET /api/settings', () => {
+    test('should retrieve user settings', async () => {
+      const res = await request(app)
+        .get('/api/settings')
+        .expect(200);
+
+      expect(res.body).toHaveProperty('id');
+      expect(res.body).toHaveProperty('timezone');
+      expect(typeof res.body.timezone).toBe('string');
+    });
+  });
+
+  describe('PUT /api/settings', () => {
+    test('should update user timezone', async () => {
+      const newTimezone = 'Europe/London';
+      const res = await request(app)
+        .put('/api/settings')
+        .send({ timezone: newTimezone })
+        .expect(200);
+
+      expect(res.body.timezone).toBe(newTimezone);
+    });
+
+    test('should reject update without timezone', async () => {
+      const res = await request(app)
+        .put('/api/settings')
+        .send({})
+        .expect(400);
+
+      expect(res.body).toHaveProperty('error');
+    });
+  });
+});
+
 describe('Activity API', () => {
   const testActivity = {
     type: 'potty',
@@ -116,9 +151,8 @@ describe('Activity API', () => {
 
     test('should filter activities by specific date', async () => {
       const testDate = '2026-07-26';
-      const timezone = 'America/New_York';
       const res = await request(app)
-        .get(`/api/activities?date=${testDate}&timezone=${encodeURIComponent(timezone)}`)
+        .get(`/api/activities?date=${testDate}`)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -166,9 +200,8 @@ describe('Activity API', () => {
 
   describe('GET /api/activities/stats', () => {
     test('should return activity statistics', async () => {
-      const timezone = 'America/New_York';
       const res = await request(app)
-        .get(`/api/activities/stats?timezone=${encodeURIComponent(timezone)}`)
+        .get('/api/activities/stats')
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -229,11 +262,45 @@ describe('Activity API', () => {
           .post('/api/activities')
           .send({
             type,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            // Add subtype for potty activities (required by validation)
+            ...(type === 'potty' && { subtype: 'pee' })
           })
           .expect(201);
 
         expect(res.body.type).toBe(type);
+      }
+    });
+
+    test('should reject potty activity without subtype', async () => {
+      const res = await request(app)
+        .post('/api/activities')
+        .send({
+          type: 'potty',
+          timestamp: new Date().toISOString()
+          // Missing required subtype
+        })
+        .expect(400);
+
+      expect(res.body).toHaveProperty('error');
+      expect(res.body.error).toBe('Validation error');
+    });
+
+    test('should accept non-potty activities without subtype', async () => {
+      const types = ['vomit', 'eating', 'groom', 'surgery'];
+
+      for (const type of types) {
+        const res = await request(app)
+          .post('/api/activities')
+          .send({
+            type,
+            timestamp: new Date().toISOString()
+            // No subtype needed for non-potty activities
+          })
+          .expect(201);
+
+        expect(res.body.type).toBe(type);
+        expect(res.body.subtype).toBeNull();
       }
     });
   });

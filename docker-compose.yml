@@ -13,4 +13,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       PORT: 3000
       NODE_ENV: production
+      LOG_LEVEL: info
+      ALLOWED_ORIGINS: "*"
+    volumes:
+      - ./logs:/app/logs
     restart: unless-stopped

@@ -28,19 +28,47 @@ module.exports = async () => {
     }
   }
 
-  // Create table
+  // Drop and recreate tables (clean slate for tests)
   await pool.query(`
     DROP TABLE IF EXISTS activities;
+    DROP TABLE IF EXISTS user_settings;
+  `);
+
+  // Create user_settings table
+  await pool.query(`
+    CREATE TABLE user_settings (
+      id SERIAL PRIMARY KEY,
+      timezone VARCHAR(100) NOT NULL DEFAULT 'America/New_York',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Create activities table with all required fields
+  await pool.query(`
     CREATE TABLE activities (
       id SERIAL PRIMARY KEY,
       type VARCHAR(50) NOT NULL,
       subtype VARCHAR(50),
       timestamp TIMESTAMP NOT NULL,
+      timestamp_local_date DATE,
+      user_timezone VARCHAR(100),
       notes TEXT,
       gps_lat DECIMAL(10, 8),
       gps_lon DECIMAL(11, 8),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+  `);
+
+  // Create indexes
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_activities_local_date ON activities(timestamp_local_date);
+    CREATE INDEX IF NOT EXISTS idx_activities_type_date ON activities(type, timestamp_local_date);
+  `);
+
+  // Insert default user settings
+  await pool.query(`
+    INSERT INTO user_settings (timezone) VALUES ('America/New_York');
   `);
 
   console.log('Test database initialized');

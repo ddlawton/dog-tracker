@@ -1,18 +1,34 @@
 {
   "name": "josie-tracker-frontend",
-  "version": "1.0.0",
-  "description": "Dog activity tracker frontend",
+  "version": "2.0.0",
+  "description": "Josie Dog Tracker - React Frontend",
+  "type": "module",
   "scripts": {
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "luxon": "^3.4.4",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
-  },
-  "jest": {
-    "testEnvironment": "jsdom",
-    "testMatch": ["**/tests/**/*.test.js"],
-    "collectCoverageFrom": ["app.js", "!**/node_modules/**"]
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/ui": "^1.0.4",
+    "jsdom": "^23.0.1",
+    "vite": "^5.0.8",
+    "vitest": "^1.0.4"
   }
 }

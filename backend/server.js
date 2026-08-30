@@ -1,186 +1,302 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 require('dotenv').config();
 
-const { Pool } = require('pg');
+const logger = require('./utils/logger');
+const { pool, connectWithRetry, testConnection, getUserTimezone } = require('./utils/db');
+const { errorHandler, asyncHandler, notFoundHandler } = require('./middleware/errorHandler');
+const requestLogger = require('./middleware/requestLogger');
+const { 
+  activitySchema, 
+  settingsSchema, 
+  dateQuerySchema, 
+  idParamSchema 
+} = require('./utils/validation');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Database connection
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Middleware
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'frontend')));
+app.use(compression()); // Compress responses
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' })); // Remove body-parser, use built-in
+app.use(limiter);
+app.use(requestLogger);
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // Initialize database
 async function initDB() {
   try {
+    logger.info('Initializing database...');
+    
+    // Create user_settings table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_settings (
+        id SERIAL PRIMARY KEY,
+        timezone VARCHAR(100) NOT NULL DEFAULT 'America/New_York',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create activities table with timezone fields
     await pool.query(`
       CREATE TABLE IF NOT EXISTS activities (
         id SERIAL PRIMARY KEY,
         type VARCHAR(50) NOT NULL,
         subtype VARCHAR(50),
         timestamp TIMESTAMP NOT NULL,
+        timestamp_local_date DATE,
+        user_timezone VARCHAR(100),
         notes TEXT,
         gps_lat DECIMAL(10, 8),
         gps_lon DECIMAL(11, 8),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    console.log('Database initialized');
+
+    // Create indexes for faster queries
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_activities_local_date ON activities(timestamp_local_date);
+      CREATE INDEX IF NOT EXISTS idx_activities_type_date ON activities(type, timestamp_local_date);
+    `);
+
+    // Ensure default user settings exist
+    await pool.query(`
+      INSERT INTO user_settings (timezone) 
+      SELECT 'America/New_York' 
+      WHERE NOT EXISTS (SELECT 1 FROM user_settings);
+    `);
+
+    logger.info('Database initialized successfully');
   } catch (error) {
-    console.error('Database initialization error:', error);
+    logger.error('Database initialization error', { error: error.message });
+    throw error;
   }
 }
 
 // API Routes
 
+// GET /api/settings - Get user settings
+app.get('/api/settings', asyncHandler(async (req, res) => {
+  const result = await pool.query('SELECT id, timezone, created_at, updated_at FROM user_settings LIMIT 1');
+  
+  if (result.rows.length === 0) {
+    return res.status(404).json({ 
+      error: 'Settings not found',
+      requestId: req.id 
+    });
+  }
+  
+  res.json(result.rows[0]);
+}));
+
+// PUT /api/settings - Update user settings
+app.put('/api/settings', asyncHandler(async (req, res) => {
+  // Validate request body
+  const { error, value } = settingsSchema.validate(req.body);
+  if (error) {
+    error.isJoi = true;
+    throw error;
+  }
+
+  const { timezone } = value;
+  
+  const result = await pool.query(
+    `UPDATE user_settings 
+     SET timezone = $1, updated_at = CURRENT_TIMESTAMP 
+     RETURNING id, timezone, created_at, updated_at`,
+    [timezone]
+  );
+  
+  logger.info('Timezone updated', { 
+    timezone, 
+    requestId: req.id 
+  });
+  
+  res.json(result.rows[0]);
+}));
+
 // POST /api/activities - Log new activity
-app.post('/api/activities', async (req, res) => {
-  const { type, subtype, timestamp, notes, gps_lat, gps_lon } = req.body;
-
-  if (!type || !timestamp) {
-    return res.status(400).json({ error: 'type and timestamp are required' });
+app.post('/api/activities', asyncHandler(async (req, res) => {
+  // Validate request body
+  const { error, value } = activitySchema.validate(req.body);
+  if (error) {
+    error.isJoi = true;
+    throw error;
   }
 
-  try {
-    const result = await pool.query(
-      `INSERT INTO activities (type, subtype, timestamp, notes, gps_lat, gps_lon)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at`,
-      [type, subtype ?? null, timestamp, notes ?? null, gps_lat ?? null, gps_lon ?? null]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error inserting activity:', error);
-    res.status(500).json({ error: 'Failed to log activity' });
-  }
-});
+  const { type, subtype, timestamp, notes, gps_lat, gps_lon } = value;
+  
+  const userTimezone = await getUserTimezone();
+  
+  // Compute the local date in user's timezone
+  const result = await pool.query(
+    `INSERT INTO activities (type, subtype, timestamp, timestamp_local_date, user_timezone, notes, gps_lat, gps_lon)
+     VALUES ($1, $2, $3::TIMESTAMPTZ, (($3::TIMESTAMPTZ) AT TIME ZONE $4)::DATE, $4, $5, $6, $7)
+     RETURNING id, type, subtype, timestamp, timestamp_local_date, user_timezone, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at`,
+    [type, subtype, timestamp, userTimezone, notes, gps_lat, gps_lon]
+  );
+  
+  logger.info('Activity logged', { 
+    type, 
+    subtype, 
+    timestamp, 
+    requestId: req.id 
+  });
+  
+  res.status(201).json(result.rows[0]);
+}));
 
 // GET /api/activities - Fetch activities by date
-app.get('/api/activities', async (req, res) => {
-  const { date, timezone } = req.query;
+app.get('/api/activities', asyncHandler(async (req, res) => {
+  const { date } = req.query;
+  
+  let query = `SELECT id, type, subtype, timestamp, timestamp_local_date, user_timezone, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities ORDER BY timestamp DESC`;
+  let params = [];
 
-  try {
-    let query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities ORDER BY timestamp DESC`;
-    let params = [];
-
-    if (date) {
-      // If timezone is provided, convert timestamp to that timezone before filtering
-      if (timezone) {
-        query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities 
-                 WHERE DATE(timestamp AT TIME ZONE $2) = $1::date
-                 ORDER BY timestamp DESC`;
-        params = [date, timezone];
-      } else {
-        query = `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities 
-                 WHERE DATE(timestamp) = $1 
-                 ORDER BY timestamp DESC`;
-        params = [date];
-      }
+  if (date) {
+    // Validate date parameter
+    const { error } = dateQuerySchema.validate({ date });
+    if (error) {
+      error.isJoi = true;
+      throw error;
     }
-
-    const result = await pool.query(query, params);
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching activities:', error);
-    res.status(500).json({ error: 'Failed to fetch activities' });
+    
+    // Simple date filtering using the pre-computed local date
+    query = `SELECT id, type, subtype, timestamp, timestamp_local_date, user_timezone, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities 
+             WHERE timestamp_local_date = $1::date
+             ORDER BY timestamp DESC`;
+    params = [date];
   }
-});
+
+  const result = await pool.query(query, params);
+  res.json(result.rows);
+}));
 
 // GET /api/activities/stats - Activity statistics
-app.get('/api/activities/stats', async (req, res) => {
-  const { timezone } = req.query;
+app.get('/api/activities/stats', asyncHandler(async (req, res) => {
+  const userTimezone = await getUserTimezone();
   
-  try {
-    let query;
-    let params = [];
-    
-    if (timezone) {
-      query = `SELECT type, COUNT(*)::INTEGER as count
-               FROM activities
-               WHERE DATE(timestamp AT TIME ZONE $1) = DATE(NOW() AT TIME ZONE $1)
-               GROUP BY type`;
-      params = [timezone];
-      const result = await pool.query(query, params);
-      res.json(result.rows);
-    } else {
-      query = `SELECT type, COUNT(*)::INTEGER as count
-               FROM activities
-               WHERE DATE(timestamp) = CURRENT_DATE
-               GROUP BY type`;
-      const result = await pool.query(query);
-      res.json(result.rows);
-    }
-  } catch (error) {
-    console.error('Error fetching stats:', error);
-    res.status(500).json({ error: 'Failed to fetch stats' });
-  }
-});
+  // Get today's date in user's timezone
+  const result = await pool.query(
+    `SELECT type, COUNT(*)::INTEGER as count
+     FROM activities
+     WHERE timestamp_local_date = DATE(NOW() AT TIME ZONE $1)
+     GROUP BY type`,
+    [userTimezone]
+  );
+  
+  res.json(result.rows);
+}));
 
 // DELETE /api/activities/:id - Delete activity
-app.delete('/api/activities/:id', async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const result = await pool.query(
-      `DELETE FROM activities WHERE id = $1 RETURNING id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Activity not found' });
-    }
-
-    res.json({ message: 'Activity deleted', activity: result.rows[0] });
-  } catch (error) {
-    console.error('Error deleting activity:', error);
-    res.status(500).json({ error: 'Failed to delete activity' });
+app.delete('/api/activities/:id', asyncHandler(async (req, res) => {
+  // Validate ID parameter
+  const { error, value } = idParamSchema.validate(req.params);
+  if (error) {
+    error.isJoi = true;
+    throw error;
   }
-});
+  
+  const { id } = value;
+  
+  const result = await pool.query(
+    `DELETE FROM activities WHERE id = $1 RETURNING id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at`,
+    [id]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ 
+      error: 'Activity not found',
+      requestId: req.id 
+    });
+  }
+
+  logger.info('Activity deleted', { 
+    id, 
+    type: result.rows[0].type, 
+    requestId: req.id 
+  });
+
+  res.json({ message: 'Activity deleted', activity: result.rows[0] });
+}));
 
 // GET /api/export - Export all activities as JSON
-app.get('/api/export', async (req, res) => {
-  try {
-    const result = await pool.query(`SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at FROM activities ORDER BY timestamp DESC`);
-    res.json({
-      exported_at: new Date().toISOString(),
-      count: result.rows.length,
-      activities: result.rows
-    });
-  } catch (error) {
-    console.error('Error exporting activities:', error);
-    res.status(500).json({ error: 'Failed to export activities' });
-  }
-});
+app.get('/api/export', asyncHandler(async (req, res) => {
+  const result = await pool.query(
+    `SELECT id, type, subtype, timestamp, notes, gps_lat::FLOAT, gps_lon::FLOAT, created_at 
+     FROM activities 
+     ORDER BY timestamp DESC`
+  );
+  
+  logger.info('Data exported', { 
+    count: result.rows.length, 
+    requestId: req.id 
+  });
+  
+  res.json({
+    exported_at: new Date().toISOString(),
+    count: result.rows.length,
+    activities: result.rows
+  });
+}));
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+// Health check with database ping
+app.get('/health', asyncHandler(async (req, res) => {
+  const dbHealth = await testConnection();
+  
+  res.json({
+    status: dbHealth.healthy ? 'ok' : 'degraded',
+    database: dbHealth,
+    timestamp: new Date().toISOString()
+  });
+}));
 
 // Serve frontend from root
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/index.html'));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
+
+// Error handling middleware (must be last)
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    initDB();
-  });
+  (async () => {
+    try {
+      // Connect to database with retries
+      await connectWithRetry();
+      
+      // Initialize database tables
+      await initDB();
+      
+      // Start server
+      app.listen(PORT, () => {
+        logger.info(`Server running on port ${PORT}`);
+        logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      });
+    } catch (error) {
+      logger.error('Failed to start server', { error: error.message });
+      process.exit(1);
+    }
+  })();
 }
 
 module.exports = app;

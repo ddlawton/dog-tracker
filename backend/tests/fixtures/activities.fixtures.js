@@ -62,7 +62,8 @@ const activityFixtures = {
       timestamp: now.toISOString()
     },
     noTimestamp: {
-      type: 'potty'
+      type: 'potty',
+      subtype: 'pee' // Include subtype for valid structure (will still fail on missing timestamp)
     },
     invalidType: {
       type: 'unknown',

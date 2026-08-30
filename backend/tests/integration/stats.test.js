@@ -29,7 +29,7 @@ afterAll(async () => {
 
 describe('GET /api/activities/stats - Activity Statistics', () => {
   beforeEach(async () => {
-    await pool.query('TRUNCATE activities RESTART IDENTITY');
+    await pool.query('TRUNCATE activities RESTART IDENTITY CASCADE');
 
     // Create varied activities for today
     for (const type of fixtures.allActivityTypes) {
@@ -37,7 +37,9 @@ describe('GET /api/activities/stats - Activity Statistics', () => {
         .post('/api/activities')
         .send({
           type,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          // Add subtype for potty activities (required by validation)
+          ...(type === 'potty' && { subtype: 'pee' })
         });
     }
   });
@@ -67,7 +69,7 @@ describe('GET /api/activities/stats - Activity Statistics', () => {
 
 describe('GET /api/export - Export Data', () => {
   beforeEach(async () => {
-    await pool.query('TRUNCATE activities RESTART IDENTITY');
+    await pool.query('TRUNCATE activities RESTART IDENTITY CASCADE');
 
     // Create test activities
     await request(app)

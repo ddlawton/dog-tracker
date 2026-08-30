@@ -28,9 +28,9 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  // Clear table before each test
+  // Clear activities table before each test (keep user_settings)
   if (pool) {
-    await pool.query('TRUNCATE activities RESTART IDENTITY');
+    await pool.query('TRUNCATE activities RESTART IDENTITY CASCADE');
   }
 });
 
@@ -84,7 +84,9 @@ describe('POST /api/activities - Create Activity', () => {
     for (const type of fixtures.allActivityTypes) {
       const activity = {
         type,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // Add subtype for potty activities (required by validation)
+        ...(type === 'potty' && { subtype: 'pee' })
       };
 
       const res = await request(app)
@@ -100,6 +102,7 @@ describe('POST /api/activities - Create Activity', () => {
     for (const [location, coords] of Object.entries(fixtures.gpsVariations)) {
       const activity = {
         type: 'potty',
+        subtype: 'pee', // Required for potty activities
         timestamp: new Date().toISOString(),
         gps_lat: coords.lat,
         gps_lon: coords.lon
@@ -153,9 +156,8 @@ describe('GET /api/activities - Retrieve Activities', () => {
 
   test('should filter activities by specific date', async () => {
     const testDate = new Date().toISOString().split('T')[0];
-    const timezone = 'America/New_York';
     const res = await request(app)
-      .get(`/api/activities?date=${testDate}&timezone=${encodeURIComponent(timezone)}`)
+      .get(`/api/activities?date=${testDate}`)
       .expect(200);
 
     expect(Array.isArray(res.body)).toBe(true);
@@ -195,9 +197,8 @@ describe('DELETE /api/activities/:id - Delete Activity', () => {
       .delete(`/api/activities/${activityId}`)
       .expect(200);
 
-    const timezone = 'America/New_York';
     const getRes = await request(app)
-      .get(`/api/activities?date=${new Date().toISOString().split('T')[0]}&timezone=${encodeURIComponent(timezone)}`)
+      .get(`/api/activities?date=${new Date().toISOString().split('T')[0]}`)
       .expect(200);
 
     const deleted = getRes.body.find(a => a.id === activityId);

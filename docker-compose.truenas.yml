@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: josie-tracker-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: josie_tracker
+      POSTGRES_USER: josie
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - josie-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U josie -d josie_tracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  josie-tracker:
+    image: ghcr.io/ddlawton/dog-tracker:latest
+    container_name: josie-tracker-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: josie_tracker
+      DB_USER: josie
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      PORT: 3000
+      NODE_ENV: production
+      LOG_LEVEL: info
+      ALLOWED_ORIGINS: "*"
+    volumes:
+      - app_logs:/app/logs
+    networks:
+      - josie-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  josie-network:
+    driver: bridge
