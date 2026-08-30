@@ -20,13 +20,13 @@ describe('TimezoneFormatter', () => {
     expect(parsed.isValid).toBe(true);
   });
 
-  test('createTimestamp uses correct timezone', () => {
+  test('createTimestamp uses correct timezone offset', () => {
     const formatter = new TimezoneFormatter('America/New_York');
     const timestamp = formatter.createTimestamp();
-    const dt = DateTime.fromISO(timestamp);
+    const dt = DateTime.fromISO(timestamp, { setZone: true });
     
-    // Should have correct zone
-    expect(dt.zoneName).toBe('America/New_York');
+    // Should preserve the New York offset in the ISO string
+    expect(dt.offset).toBe(DateTime.now().setZone('America/New_York').offset);
   });
 
   test('formatTime returns 12-hour format', () => {
