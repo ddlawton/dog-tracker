@@ -35,7 +35,7 @@ async function setupTestDatabase() {
       id SERIAL PRIMARY KEY,
       type VARCHAR(50) NOT NULL,
       subtype VARCHAR(50),
-      timestamp TIMESTAMP NOT NULL,
+      timestamp TIMESTAMPTZ NOT NULL,
       notes TEXT,
       gps_lat DECIMAL(10, 8),
       gps_lon DECIMAL(11, 8),

@@ -50,7 +50,7 @@ module.exports = async () => {
       id SERIAL PRIMARY KEY,
       type VARCHAR(50) NOT NULL,
       subtype VARCHAR(50),
-      timestamp TIMESTAMP NOT NULL,
+      timestamp TIMESTAMPTZ NOT NULL,
       timestamp_local_date DATE,
       user_timezone VARCHAR(100),
       notes TEXT,

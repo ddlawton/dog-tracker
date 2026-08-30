@@ -82,7 +82,7 @@ export class TimezoneFormatter {
    * Parse a date string into a DateTime object
    */
   parseDate(dateString) {
-    return DateTime.fromISO(dateString, { zone: this.timezone });
+    return DateTime.fromISO(dateString).setZone(this.timezone);
   }
 
   /**
@@ -98,8 +98,8 @@ export class TimezoneFormatter {
    * Get formatted date range for display
    */
   formatDateRange(startDate, endDate) {
-    const start = DateTime.fromISO(startDate, { zone: this.timezone });
-    const end = DateTime.fromISO(endDate, { zone: this.timezone });
+    const start = DateTime.fromISO(startDate).setZone(this.timezone);
+    const end = DateTime.fromISO(endDate).setZone(this.timezone);
     
     if (start.hasSame(end, 'month')) {
       return `${start.toFormat('MMM d')} - ${end.toFormat('d, yyyy')}`;

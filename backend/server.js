@@ -60,7 +60,7 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         type VARCHAR(50) NOT NULL,
         subtype VARCHAR(50),
-        timestamp TIMESTAMP NOT NULL,
+        timestamp TIMESTAMPTZ NOT NULL,
         timestamp_local_date DATE,
         user_timezone VARCHAR(100),
         notes TEXT,
@@ -68,6 +68,23 @@ async function initDB() {
         gps_lon DECIMAL(11, 8),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_name = 'activities'
+            AND column_name = 'timestamp'
+            AND data_type = 'timestamp without time zone'
+        ) THEN
+          ALTER TABLE activities
+          ALTER COLUMN timestamp TYPE TIMESTAMPTZ
+          USING timestamp AT TIME ZONE current_setting('TIMEZONE');
+        END IF;
+      END $$;
     `);
 
     // Create indexes for faster queries
