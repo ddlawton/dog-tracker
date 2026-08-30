@@ -22,7 +22,6 @@ RUN npm install --production
 
 # Copy backend source files
 COPY backend/ ./
-COPY shared/ /app/shared/
 
 # Copy built frontend from build stage
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
